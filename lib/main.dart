@@ -1,6 +1,8 @@
 import 'dart:convert'; // JSON serialization
+import 'dart:io'; // For platform detection
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart'; // For sharing history
 import 'package:shared_preferences/shared_preferences.dart'; // For persistence
 import 'package:intl/intl.dart'; // For formatting
 
@@ -89,16 +91,19 @@ class _TipCalculatorScreenState extends State<TipCalculatorScreen> {
     final storedHistoryJson = prefs.getString('tip_calculator_history');
     
     if (storedHistoryJson != null) {
-      // Note: In a real app, we'd use JSON serialization/deserialization for Calculation objects. 
-    if (storedHistoryJson != null) {
-      final List<Map<String, dynamic>> historyList = jsonDecode(storedHistoryJson);
-      _history = historyList.map((data) => Calculation(
-        billAmount: data['bill'],
-        tipPercentage: data['tip'],
-        peopleCount: data['people'],
-        amountPerPerson: data['ppl'],
-        timestamp: DateTime.parse(data['timestamp']), // Parse timestamp from storage
-      )).toList();
+      try {
+        final List<Map<String, dynamic>> historyList = jsonDecode(storedHistoryJson);
+        _history = historyList.map((data) => Calculation(
+          billAmount: data['bill'].toDouble(),
+          tipPercentage: data['tip'].toDouble(),
+          peopleCount: data['people'],
+          amountPerPerson: data['ppl'].toDouble(),
+          timestamp: DateTime.parse(data['timestamp']), // Parse timestamp from storage
+        )).toList();
+      } catch (e) {
+        print('Error loading history: $e');
+        _history = []; // Clear history on parse error
+      }
     } else {
        _history = []; // Start fresh if no history found
     }
@@ -154,16 +159,124 @@ class _TipCalculatorScreenState extends State<TipCalculatorScreen> {
   }
 
   // Function to copy the final amount per person to clipboard
-
-  // Function to copy the final amount per person to clipboard
   void _copyAmountToClipboard() async {
     // Use NumberFormat for localized currency string generation
-    final formatter = NumberFormat.currency(locale: 'en-US', symbol: ''); 
+    final formatter = NumberFormat.currency(symbol: '', locale: 'en_US'); 
     final formattedString = formatter.format(_amountPerPerson);
-    await Clipboard.setData(ClipboardData(text: '$formattedString $_selectedCurrency'));
+    await Clipboard.setData(ClipboardData(text: formattedString));
+    
+    // Show snackbar with short animation
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Copied! Amount saved to clipboard.')),
+      SnackBar(
+        content: const Text('Copied to clipboard!'),
+        duration: Duration(seconds: 1),
+        behavior: MessageBehavior.transient,
+      ),
     );
+  }
+
+  // Function to share history
+  Future<void> _shareHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonHistory = jsonEncode(_history.map((h) => {
+      'bill': h.billAmount, 
+      'tip': h.tipPercentage, 
+      'people': h.peopleCount, 
+      'amountPerPerson': h.amountPerPerson,
+      'timestamp': h.timestamp.toIso8601String(),
+    }));
+
+    if (Platform.isAndroid) {
+      // Android - use Share.share
+      await Share.share('Tip Calculator History:\n$jsonHistory');
+    } else if (Platform.isIOS) {
+      // iOS - use ActivityView
+      await ActivityView.show(context, jsonHistory);
+    } else {
+      // Desktop fallback
+      await Clipboard.setData(ClipboardData(text: 'Tip Calculator History:\n$jsonHistory'));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('History copied to clipboard. Share manually.')),
+      );
+    }
+  }
+
+  // Function to clear history
+  Future<void> _clearHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('tip_calculator_history');
+    
+    // Update UI and recalculate
+    setState(() {
+      _history.clear();
+    });
+    
+    _calculateTip();
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('History cleared.')),
+    );
+  }
+
+  // Function to show history export options
+  Future<void> _showExportOptions() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonHistory = jsonEncode(_history.map((h) => {
+      'bill': h.billAmount, 
+      'tip': h.tipPercentage, 
+      'people': h.peopleCount, 
+      'amountPerPerson': h.amountPerPerson,
+      'timestamp': h.timestamp.toIso8601String(),
+    }));
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Export History'),
+        content: const Text('Choose how to export your calculations:'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'clipboard'),
+            child: const Text('Copy as JSON'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, 'csv'),
+            child: const Text('Download CSV'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == 'clipboard') {
+      await Clipboard.setData(ClipboardData(text: jsonHistory));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('JSON copied to clipboard.')),
+      );
+    } else if (result == 'csv') {
+      // Create CSV content
+      final csvHeader = '"Date","Bill Amount","Tip %","People","Amount Per Person"\n';
+      final csvContent = '${csvHeader}' + _history.map((h) {
+        final date = DateFormat('yyyy-MM-dd HH:mm').format(h.timestamp);
+        return '"$date",${h.billAmount},${h.tipPercentage},${h.peopleCount},${h.amountPerPerson}\n';
+      }).join();
+      
+      // Save to a temp file and offer share
+      final file = File('${Directory.tmp.path}/tip_history.csv');
+      await file.writeAsString(csvContent);
+      
+      if (Platform.isAndroid) {
+        await Share.shareFileX(file.path, mimeType: 'text/csv', name: 'tip_history.csv');
+      } else {
+        await Clipboard.setData(ClipboardData(text: csvContent));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('CSV copied to clipboard. Share manually.')),
+        );
+      }
+    }
   }
 
   @override
@@ -274,7 +387,7 @@ class _TipCalculatorScreenState extends State<TipCalculatorScreen> {
               ),
             ),
 
-            // --- Action Buttons (Polish/UX improvement) ---
+            // --- Action Buttons (Enhanced UX) ---
              Padding(
                padding: const EdgeInsets.fromLTRB(24.0, 10.0, 24.0, 20.0),
                child: Row(
@@ -294,56 +407,91 @@ class _TipCalculatorScreenState extends State<TipCalculatorScreen> {
                       ),
                     ),
                      const SizedBox(width: 10),
-                     Expanded(
-                       child: ElevatedButton.icon(
-                         onPressed: () {
-                             // Clear all inputs and history for a fresh start
-                             _billAmountController.clear();
-                             _tipPercentageController.text = '20';
-                             _peopleCountController.text = '1';
-                             setState(() { _history.clear(); });
-                             _calculateTip(); // Recalculate with default values
-                         },
-                         icon: const Icon(Icons.refresh, size: 24),
-                         label: const Text('Clear All', style: TextStyle(fontSize: 16)),
-                         style: ElevatedButton.styleFrom(
-                           padding: EdgeInsets.symmetric(vertical: 15.0),
-                           backgroundColor: Colors.grey[300],
-                           foregroundColor: Colors.black,
-                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                         ),
-                       ),
-                     ),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _clearHistory,
+                        icon: const Icon(Icons.clear_all, size: 24),
+                        label: const Text('Clear History', style: TextStyle(fontSize: 16)),
+                        style: ElevatedButton.styleFrom(
+                          padding: EdgeInsets.symmetric(vertical: 15.0),
+                          backgroundColor: Colors.red[100],
+                          foregroundColor: Colors.red,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                     const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _showExportOptions,
+                        icon: const Icon(Icons.share, size: 24),
+                        label: const Text('Export', style: TextStyle(fontSize: 16)),
+                        style: ElevatedButton.styleFrom(
+                          padding: EdgeInsets.symmetric(vertical: 15.0),
+                          backgroundColor: Colors.blue[100],
+                          foregroundColor: Colors.blue,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
                  ],
                ),
              ),
 
-          // --- History Widget (Advanced Feature) ---
-           Padding(
-             padding: const EdgeInsets.fromLTRB(24.0, 10.0, 24.0, 20.0),
-             child: Text('History', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-           ),
+          // --- Enhanced History Widget ---
           Container(
-            height: 150,
+            height: 200,
             decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.vertical(top: Radius.circular(15))
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.vertical(top: Radius.circular(15)),
+              border: Border.all(color: Colors.grey[300]!)
             ),
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: _history.length,
-              itemBuilder: (context, index) {
-                final calc = _history[index];
-                // Use NumberFormat for consistent display in the history list too
-                final formatter = NumberFormat('##0.00', 'en_US'); 
-                return ListTile(
-                  leading: const Icon(Icons.receipt_hoarder),
-                  title: Text('${formatter.format(calc.amountPerPerson)} $_selectedCurrency'),
-                  subtitle: Text('Bill: ${calc.billAmount} | Tip: ${calc.tipPercentage}% | People: ${calc.peopleCount}'),
-                  trailing: Text(DateFormat('MMM dd, yyyy').format(DateTime.now()), style: TextStyle(fontSize: 12)), // Using current time as a placeholder for saved date
-                );
-              },
-            ),
+            child: _history.isEmpty
+              ? Center(child: Text('No history yet. Calculate a tip to see it here.', style: TextStyle(color: Colors.grey[600], fontStyle: FontStyle.italic)))
+              : Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Row(
+                        children: [
+                          Icon(Icons.history, color: Colors.teal[700]),
+                          SizedBox(width: 8),
+                          Text('History ($_history.length items)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.teal[900])),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        padding: EdgeInsets.zero, // No extra padding since we have header
+                        itemCount: _history.length,
+                        itemBuilder: (context, index) {
+                          final calc = _history[index];
+                          final formatter = NumberFormat('##0.00', 'en_US'); 
+                          return ListTile(
+                            leading: Icon(Icons.receipt, color: Colors.teal[700], size: 28),
+                            title: Text(
+                              '${formatter.format(calc.amountPerPerson)} $_selectedCurrency',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Bill: ${calc.billAmount} | Tip: ${calc.tipPercentage}% | People: ${calc.peopleCount}'),
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4.0),
+                                  child: Text(
+                                    DateFormat('MMM dd, yyyy h:mm a').format(calc.timestamp),
+                                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
           )
         ],
       );
