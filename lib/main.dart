@@ -377,6 +377,8 @@ class _TipCalculatorScreenState extends State<TipCalculatorScreen> {
                         _buildInputField('Bill Amount', _billAmountController),
                         const SizedBox(height: 16.0),
                         _buildInputField('Tip Percentage (%)', _tipPercentageController),
+                        const SizedBox(height: 8.0),
+                        Text('(Use quick selector above)', style: TextStyle(fontSize: 12, color: Colors.grey[600], fontStyle: FontStyle.italic)),
                         const SizedBox(height: 24.0),
 
                         // People Count Input (Phase 2 Feature)
@@ -423,18 +425,20 @@ class _TipCalculatorScreenState extends State<TipCalculatorScreen> {
                                 _buildResultRow('TOTAL DUE:', '$_totalBill'.replaceAll(r'\.', ','), isTotal: true),
                                 const SizedBox(height: 20.0),
                                 
-                                // Amount Per Person Box (Phase 2 Feature)
+                                // Amount Per Person Box (Enhanced Phase 2 Feature)
                                 Container(
                                   padding: const EdgeInsets.all(15.0),
                                   decoration: BoxDecoration(
                                     color: Colors.teal[50],
                                     borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: Colors.teal[300], width: 1.5)
                                   ),
                                   child: Column(
+                                     crossAxisAlignment: CrossAxisAlignment.start,
                                      children: <Widget>[
                                         Text('Split Among:', style: TextStyle(fontSize: 18, color: Colors.grey[700])),
                                         const SizedBox(height: 5),
-                                        _buildResultRow('', '$_amountPerPerson'.replaceAll(r'\.', ','), isTotal: true)
+                                        _buildResultRow('', '$_amountPerPerson'.replaceAll(r'\\.', ','), isTotal: true)
                                      ],
                                   ),
                                 ),
