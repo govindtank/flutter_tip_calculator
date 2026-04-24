@@ -596,4 +596,45 @@ class _TipCalculatorScreenState extends State<TipCalculatorScreen> {
       ),
     );
   }
+
+  // Helper method to build a standardized input field with validation feedback (Phase 3 Feature)
+  Widget _buildInputField(String label, TextEditingController controller, {bool isInt = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10.0),
+      child: TextField(
+        controller: controller,
+        keyboardType: isInt ? TextInputType.number : TextInputType.numberWithOptions(decimal: true),
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(isInt ? Icons.people : Icons.attach_money, color: Colors.teal[700]),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12.0),
+            borderSide: const BorderSide(color: Colors.teal, width: 2),
+          ),
+        ),
+        onChanged: (value) {
+          // Recalculate whenever the text changes
+          _calculateTip();
+        },
+        // Input validation - prevent negative numbers and unreasonable values
+        validator: (value) {
+          if (isInt && int.tryParse(value ?? '') == null) {
+            return 'Please enter a valid number';
+          }
+          
+          final num = double.tryParse(value ?? '');
+          if (num != null && num < 0) {
+            return 'Cannot be negative';
+          } else if (num != null && num > 999999) {
+            return 'Value too large';
+          }
+          
+          return null; // Valid
+        },
+      ),
+    );
+  }
 }
