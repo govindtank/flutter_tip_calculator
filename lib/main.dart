@@ -1,3 +1,4 @@
+import 'dart:convert'; // JSON serialization
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // For persistence
@@ -9,8 +10,15 @@ class Calculation {
   final double tipPercentage;
   final int peopleCount;
   final double amountPerPerson;
+  final DateTime timestamp; // Added date/time stamping
 
-  Calculation({required this.billAmount, required this.tipPercentage, required this.peopleCount, required this.amountPerPerson});
+  Calculation({
+    required this.billAmount,
+    required this.tipPercentage,
+    required this.peopleCount,
+    required this.amountPerPerson,
+    required this.timestamp,
+  });
 }
 
 void main() {
@@ -50,7 +58,10 @@ class _TipCalculatorScreenState extends State<TipCalculatorScreen> {
   // State management for history
   List<Calculation> _history = [];
   String _selectedCurrency = 'USD';
-
+  
+  // Number formatters
+  final currencyFormatter = NumberFormat.currency(locale: 'en_US', symbol: '$');
+  
   // --- Calculated Results ---
   double _tipAmount = 0.0;
   double _totalBill = 0.0;
@@ -79,13 +90,14 @@ class _TipCalculatorScreenState extends State<TipCalculatorScreen> {
     
     if (storedHistoryJson != null) {
       // Note: In a real app, we'd use JSON serialization/deserialization for Calculation objects. 
-      // For this simulation, we assume successful parsing and cast to the list type.
+    if (storedHistoryJson != null) {
       final List<Map<String, dynamic>> historyList = jsonDecode(storedHistoryJson);
       _history = historyList.map((data) => Calculation(
         billAmount: data['bill'],
         tipPercentage: data['tip'],
         peopleCount: data['people'],
-        amountPerPerson: data['ppl']
+        amountPerPerson: data['ppl'],
+        timestamp: DateTime.parse(data['timestamp']), // Parse timestamp from storage
       )).toList();
     } else {
        _history = []; // Start fresh if no history found
@@ -113,11 +125,13 @@ class _TipCalculatorScreenState extends State<TipCalculatorScreen> {
 
     // Update state and save to history
     setState(() {
+      final now = DateTime.now();
       final newCalculation = Calculation(
         billAmount: billAmount, 
         tipPercentage: tipPercent, 
         peopleCount: peopleCount, 
-        amountPerPerson: _amountPerPerson
+        amountPerPerson: _amountPerPerson,
+        timestamp: now, // Store timestamp for history
       );
       _history.insert(0, newCalculation);
     });
@@ -126,19 +140,20 @@ class _TipCalculatorScreenState extends State<TipCalculatorScreen> {
     _saveHistory();
   }
 
-
   Future<void> _saveHistory() async {
      final List<Map<String, dynamic>> historyList = _history.map((calc) => {
         'bill': calc.billAmount, 
         'tip': calc.tipPercentage, 
         'people': calc.peopleCount, 
-        'ppl': calc.amountPerPerson
+        'ppl': calc.amountPerPerson,
+        'timestamp': calc.timestamp.toIso8601String(), // Store timestamp in ISO format
       }).toList();
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('tip_calculator_history', jsonEncode(historyList));
   }
 
+  // Function to copy the final amount per person to clipboard
 
   // Function to copy the final amount per person to clipboard
   void _copyAmountToClipboard() async {
