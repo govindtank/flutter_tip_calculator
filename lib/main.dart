@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart'; // For sharing history
 import 'package:shared_preferences/shared_preferences.dart'; // For persistence
 import 'package:intl/intl.dart'; // For formatting
-
 // --- Model for Calculation History ---
 class Calculation {
   final double billAmount;
@@ -320,9 +319,61 @@ class _TipCalculatorScreenState extends State<TipCalculatorScreen> {
                       ),
                     ),
 
-                    // 2. Input Fields
+                    // 2. Input Fields & Quick Selectors
                     Column(
                       children: <Widget>[
+                        // Quick Tip Percentage Selector (Phase 3 Feature)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 16.0),
+                          child: Wrap(
+                            spacing: 8.0,
+                            runSpacing: 8.0,
+                            children: [
+                              Chip(
+                                label: Text('10%'),
+                                onSelected: (value) {
+                                  _tipPercentageController.text = '10';
+                                  _calculateTip();
+                                },
+                                selected: _tipPercentageController.text == '10',
+                              ),
+                              Chip(
+                                label: Text('15%'),
+                                onSelected: (value) {
+                                  _tipPercentageController.text = '15';
+                                  _calculateTip();
+                                },
+                                selected: _tipPercentageController.text == '15',
+                              ),
+                              Chip(
+                                label: Text('20%', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                onSelected: (value) {
+                                  _tipPercentageController.text = '20';
+                                  _calculateTip();
+                                },
+                                selected: _tipPercentageController.text == '20',
+                                backgroundColor: Colors.teal.withOpacity(0.15),
+                              ),
+                              Chip(
+                                label: Text('25%'),
+                                onSelected: (value) {
+                                  _tipPercentageController.text = '25';
+                                  _calculateTip();
+                                },
+                                selected: _tipPercentageController.text == '25',
+                              ),
+                              Chip(
+                                label: Text('30%'),
+                                onSelected: (value) {
+                                  _tipPercentageController.text = '30';
+                                  _calculateTip();
+                                },
+                                selected: _tipPercentageController.text == '30',
+                              ),
+                            ],
+                          ),
+                        ),
+
                         _buildInputField('Bill Amount', _billAmountController),
                         const SizedBox(height: 16.0),
                         _buildInputField('Tip Percentage (%)', _tipPercentageController),
@@ -344,10 +395,21 @@ class _TipCalculatorScreenState extends State<TipCalculatorScreen> {
                           child: Padding(
                             padding: const EdgeInsets.all(20.0),
                             child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
-                                _buildResultRow('Tip Amount:', '$_tipAmount'.replaceAll(r'\.', ',')),
-                                const SizedBox(height: 15.0),
+                                // Currency Header
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text('Results:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                    Text('$_selectedCurrency', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.grey[700])),
+                                  ],
+                                ),
+                                
+                                _buildResultRow('Tip Amount:', '$_tipAmount'.replaceAll(r'\\.', ','), isLarge: false),
+                                const SizedBox(height: 12.0),
 
+                                Divider(color: Colors.grey[400]),
                                 Divider(),
 
                                 Padding(
@@ -520,16 +582,16 @@ class _TipCalculatorScreenState extends State<TipCalculatorScreen> {
     );
   }
 
-  // Helper method to build a result display row
-  Widget _buildResultRow(String label, String value, {bool isTotal = false}) {
+  // Helper method to build a result display row (Improved with optional params)
+  Widget _buildResultRow(String label, String value, {bool isTotal = false, bool isLarge = true}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0)
-      ..child: Row(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(fontSize: 18, color: Colors.grey[700])),
+          Text(label, style: TextStyle(fontSize: isLarge ? 18 : 16, color: Colors.grey[700])),
           // Note: The displayed value here still uses String formatting from the calculation method, but the logic is robust.
-          Text(value, style: TextStyle(fontSize: isTotal ? 24 : 22, fontWeight: isTotal ? FontWeight.w900 : FontWeight.bold)),
+          Text(value, style: TextStyle(fontSize: isTotal ? 24 : (isLarge ? 20 : 18), fontWeight: isTotal ? FontWeight.w900 : FontWeight.w600)),
         ],
       ),
     );
