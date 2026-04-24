@@ -14,6 +14,7 @@ dependencies:
   # Added dependencies for production readiness
   shared_preferences: ^2.2.2 # For persistent history storage
   intl: ^0.18.1 # For locale-aware number and date formatting
+  share_plus: ^12.0.2 # For sharing calculation history
 
 dev_dependencies:
   flutter_test:
